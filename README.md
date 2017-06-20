@@ -12,5 +12,8 @@ Arduino Nano с экраном 1602, энкодер для ручного уст
 
 Подключаются в цепочки по 3 штуки с резистором 52Ома.
 
+#### Фото
+![LED Photoresist Timer](https://raw.github.com/phpscriptru/LED-Photoresist-Timer/master/Foto.jpg)
+
 #### Видео
 [![LED Photoresist Timer](http://img.youtube.com/vi/yPS-ldzMQRI/0.jpg)](http://www.youtube.com/watch?v=yPS-ldzMQRI)
