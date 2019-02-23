@@ -8,6 +8,6 @@
 * https://goo.gl/gxeTg7 Экран;
 * https://goo.gl/FU2FH8 Тестер;
 
-Группа в VK: http://vk.com/hamradiogoods. Еще больше полезных товаров радиолюбителю
+Группа в VK: http://vk.com/WhatWouldSolder. Что бы Такого Спаять?
 
 По всем вопросам: info@phpscript.ru
