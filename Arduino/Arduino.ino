@@ -1,184 +1,161 @@
-/*
- LED засветка фоторезиста и паяльной маски
- 
- https://github.com/phpscriptru/LED-Photoresist-Timer
-*/
+// ----------------------------------------------------------------------------
+// LED засветка фоторезиста и паяльной маски
+// версия 2.1 (Nano)
+// (c) 2019 Дмитрий Дементьев <info@phpscript.ru>
+// ----------------------------------------------------------------------------
 
-#include <LiquidCrystal.h>
-#include <Bounce.h>
-#include <Encod_er.h>
+#include <EEPROM.h>
+#if ARDUINO >= 100
+  #include <Arduino.h>
+#else
+  #include <WProgram.h>
+#endif
+#include "config.h"
+#include "button.h"
+#include "lcd.h"
 
-long Preset1 = 20;  // предустановка времени №1 (сек.)
-long Preset2 = 140;  // предустановка времени №2 (сек.)
-long Preset3 = 240;  // предустановка времени №3 (сек.)
-int sec_step = 5; // шаг энкодера (сек.)
+LCD       lcd;
+Data1602  fullDataScreen;
+BUTTON    button1;
+BUTTON    button2;
+BUTTON    button3;
 
-unsigned long currentTime; // текущее время
-unsigned long loopTime; // время окончания
+int  Presets[]    = {0, 0, 0};
+int  PresetsBtn[] = {1, 2, 3};
+unsigned long currentTime;   // текущее время
+unsigned long loopTime;      // время окончания
 unsigned long LimitTime = 0; // таймер
-boolean working = false; // флаг запуска отсчета
-int n1,n2,n3,n4,n5 = LOW;
-LiquidCrystal lcd(12, 11, 10, 9, 8, 7); // экран
-Encod_er encoder(A2, A1, 2); // энкодер
-Bounce bouncer1 = Bounce(6, 5); // дребезг кнопок
-Bounce bouncer2 = Bounce(5, 5); 
-Bounce bouncer3 = Bounce(4, 5);  
-Bounce bouncer4 = Bounce(A0, 5); 
+volatile boolean turn;
+volatile boolean up;
+boolean start = false;       // флаг запуска отсчета
 
 void setup() {
 
-  Preset1 = Preset1*1000;
-  Preset2 = Preset2*1000;
-  Preset3 = Preset3*1000;
-  sec_step = sec_step*1000;
-  LimitTime = 0;
-  pinMode(A1, INPUT);// входы
-  pinMode(A2, INPUT);
-  pinMode(A0, INPUT);
-  digitalWrite(A0, HIGH);
-  pinMode(4, INPUT);
-  pinMode(5, INPUT);
-  pinMode(6, INPUT);
-  pinMode(13, OUTPUT);
-  lcd.begin(16, 2);
-  lcd.setCursor(0,0);
-  lcd.print("  UV LED TIMER  ");
-  lcd.setCursor(0,1);
-  lcd.print("    ver. 2.0    ");
-  delay(1000);
-  lcd.clear();
+  Serial.begin(9600);
+  Presets[0] = EEPROM.read(0); // берем пресеты из EEPROM
+  Presets[1] = EEPROM.read(1);
+  Presets[2] = EEPROM.read(2);
+  for(int i=0; i<2; i++) {
+    if (Presets[i] < 0 || Presets[i] > 86400) Presets[i] = 0;
+  }
+  pinMode(PinCLK, INPUT); // входы
+  pinMode(PinDT, INPUT);
+  pinMode(PinSW, INPUT);
+  digitalWrite(PinSW, HIGH);
+  pinMode(PinPres1, INPUT);
+  pinMode(PinPres2, INPUT);
+  pinMode(PinPres3, INPUT);
+  pinMode(PinMosf, OUTPUT);
+  attachInterrupt (0, isr, CHANGE); // прерывание энкодера
   currentTime = millis();
+  lcd.init();
+  lcd.splashScreen();
+  delay(3000);
 }
 
 void loop() {
 
-  bouncer1.update(); // дребезг кнопок
-  bouncer2.update();
-  bouncer3.update();
-  bouncer4.update();
- 
   /**
-   * Выбран режим отсчета
-   */
-  if (working == true) {
+     выбран режим отсчета
+  */
+  if (start == true) {
 
+    digitalWrite(PinMosf, HIGH); // включаем
+
+    // отсчет времени
     currentTime = millis();
-    loopTime = currentTime + LimitTime; // когда закончить
-    while(currentTime < loopTime) { // сравниваем текущее время с временем окончания
+    loopTime = currentTime + LimitTime*1000; // когда закончить  
+    while (currentTime < loopTime) { // сравниваем текущее время с временем окончания
 
-      digitalWrite(13, HIGH); // включаем
+      int h = LimitTime/60/60;
+      int m = LimitTime/60%60;
+      int s = LimitTime%60;
+  
+      sprintf(fullDataScreen.stroka1, "%s", "   Working...   ");
+      sprintf(fullDataScreen.stroka2, "    %02d:%02d:%02d    ", h,m,s);
 
-      // вывод на экран
-      lcd.setCursor(0,0);
-      lcd.print("   Exposure...  "); 
-      lcd.setCursor(4, 2);  
-      if (LimitTime/60/60/1000 < 10) { lcd.print("0"); }
-      lcd.print(LimitTime/60/60/1000);
-      lcd.print(":");
-      if (LimitTime/60/1000%60 < 10) { lcd.print("0"); }
-      lcd.print((LimitTime/60/1000)%60);
-      lcd.print(":");
-      if (LimitTime/1000%60 < 10) { lcd.print("0"); }
-      lcd.print(LimitTime/1000%60);
-      lcd.display();
-
-      // кнопка энкодера
-      bouncer4.update();
-      if (bouncer4.read() != n4) {
-         n4 = bouncer4.read();
-        if (n4 && working == true) {
-          working = false;
-          digitalWrite(13, HIGH); // включаем
-          LimitTime = 0;
-          break;
-        }
-      }
-
-      LimitTime = LimitTime - (millis() - currentTime); // уменьшаем таймер
+      LimitTime = (loopTime - currentTime) / 1000; // уменьшаем таймер
       currentTime = millis(); // получаем новое время
+
+      lcd.updateScreen(&fullDataScreen);
     }
 
-    digitalWrite(13, LOW); // отключаем 
+    // окончание работы таймера
+    digitalWrite(PinMosf, LOW); // отключаем засветку
 
-    lcd.clear();
-    lcd.print("     FINISH     ");
-    working = false;
+    sprintf(fullDataScreen.stroka1, "%s", "     FINISH     ");
+    lcd.updateScreen(&fullDataScreen);
+    start = false;
     delay (3000);
 
-  /**
-   * Выбран режим клавиатуры
-   */
+    /**
+       выбран режим выбора времени
+    */
   } else {
 
-    digitalWrite(13, LOW); // отключаем  
-    
-    if (LimitTime > 86400000) LimitTime = 0; // отбрасываем некорректные значения
+    digitalWrite(PinMosf, LOW); // отключаем засветку
+     
+    if (LimitTime > 86400) LimitTime = 0; // отбрасываем некорректные значения
+    int h = LimitTime/60/60;
+    int m = LimitTime/60%60;
+    int s = LimitTime%60;
 
-    // вывод на экран
-    lcd.setCursor(0,0);
-    lcd.print("   Set timer:   ");
-    lcd.setCursor(4, 2);  
-    if (LimitTime/60/60/1000 < 10) { lcd.print("0"); }
-    lcd.print(LimitTime/60/60/1000);
-    lcd.print(":");
-    if (LimitTime/60/1000%60 < 10) { lcd.print("0"); }
-    lcd.print((LimitTime/60/1000)%60);
-    lcd.print(":");
-    if (LimitTime/1000%60 < 10) { lcd.print("0"); }
-    lcd.print(LimitTime/1000%60);
+    sprintf(fullDataScreen.stroka1, "%s", "   Set timer:   ");
+    sprintf(fullDataScreen.stroka2, "    %02d:%02d:%02d", h,m,s);
 
-    // пресет №1
-    if (bouncer1.read() != n1) {
-      n1 = bouncer1.read();
-      if (n1) {
-        lcd.setCursor(0,1);
-        lcd.print("    preset 1    ");
-        LimitTime = Preset1;
-        delay(1000);
-      }
-    }
-
-    // пресет №2
-    if (bouncer2.read() != n2) {
-      n2 = bouncer2.read();
-      if (n2) {
-        lcd.setCursor(0,1);
-        lcd.print("    preset 2    ");
-        LimitTime = Preset2;
-        delay(1000);
-      }
-    }
-
-    // пресет №3
-    if (bouncer3.read() != n3) {
-      n3 = bouncer3.read();
-      if (n3) {
-        lcd.setCursor(0,1);
-        lcd.print("    preset 3    ");
-        LimitTime = Preset3;
-        delay(1000);
-      }
-    }
+    // пресетs №1,2,3
+    int bReturn[10];
+    bReturn[0] = button1.checkButton(PinPres1);
+    bReturn[1] = button2.checkButton(PinPres2);
+    bReturn[2] = button3.checkButton(PinPres3);
+    checkButtonClick(bReturn);
 
     // энкодер
-    encoder.scanState(); 
-    if(encoder.timeRight != 0) {
-      encoder.read();
-      encoder.timeRight= 0;
-      LimitTime += sec_step;
-    }
-    if(encoder.timeLeft != 0) {
-      encoder.read();
-      encoder.timeLeft= 0;
-      LimitTime -= sec_step;
-    } 
-    
-    // кнопка энкодера
-    if (bouncer4.read() != n4) {
-      n4 = bouncer4.read();
-      if (n4 && LimitTime != 0) {
-        working = true;
+    if (turn) {
+      if (up) {
+        LimitTime -= secStep;
+      } else {
+        LimitTime += secStep;
       }
+      turn = false;
+      if (LimitTime < 0) LimitTime = 0;
     }
+    // кнопка энкодера
+    if (digitalRead(PinSW) == LOW) {
+      start = true;
+    }
+    lcd.updateScreen(&fullDataScreen);
+    delay(250);
+  }
+}
+
+/**
+ * прерывание энкодера
+ */
+void isr ()  {
+  up = (digitalRead(PinCLK) == digitalRead(PinDT));
+  turn = true;
+}
+
+/**
+ * кнопка
+ */
+void checkButtonClick (int bReturn[])  {
+  for(int i=0; i<3; i++) {
+    if (bReturn[i] == 1) { // нажатие на кнопку
+      sprintf(fullDataScreen.stroka2, "    preset #%d    ", i+1);
+      lcd.updateScreen(&fullDataScreen);
+      LimitTime = Presets[i];
+      delay(1000);
+    }
+    if (bReturn[i] == 2) { } // двойное нажатие на кнопку
+    if (bReturn[i] == 3) { // удержание кнопки
+      EEPROM.update(i, LimitTime);
+      Presets[i] = LimitTime;
+      sprintf(fullDataScreen.stroka2, "    save #%d    ", i+1);
+      lcd.updateScreen(&fullDataScreen);
+      delay(1000);
+    }
+    if (bReturn[i] == 4) { } // долгое удержание кнопки
   }
 }

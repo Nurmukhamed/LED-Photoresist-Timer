@@ -1,4 +1,0 @@
-Encod_er	KEYWORD1
-
-scanState	KEYWORD2
-
