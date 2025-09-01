@@ -77,7 +77,7 @@ void loop() {
       int m = LimitTime/60%60;
       int s = LimitTime%60;
   
-      sprintf(fullDataScreen.stroka1, "%s", "   Working...   ");
+      sprintf(fullDataScreen.stroka1, "%s", "   Working...  ");
       sprintf(fullDataScreen.stroka2, "    %02d:%02d:%02d    ", h,m,s);
 
       LimitTime = (loopTime - currentTime) / 1000; // уменьшаем таймер
@@ -89,7 +89,7 @@ void loop() {
     // окончание работы таймера
     digitalWrite(PinMosf, LOW); // отключаем засветку
 
-    sprintf(fullDataScreen.stroka1, "%s", "     FINISH     ");
+    sprintf(fullDataScreen.stroka1, "%s", "     FINISH    ");
     lcd.updateScreen(&fullDataScreen);
     start = false;
     delay (3000);
@@ -106,7 +106,7 @@ void loop() {
     int m = LimitTime/60%60;
     int s = LimitTime%60;
 
-    sprintf(fullDataScreen.stroka1, "%s", "   Set timer:   ");
+    sprintf(fullDataScreen.stroka1, "%s", "   Set timer:  ");
     sprintf(fullDataScreen.stroka2, "    %02d:%02d:%02d", h,m,s);
 
     // пресетs №1,2,3,4,5
